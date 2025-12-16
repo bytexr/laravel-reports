@@ -18,12 +18,8 @@ jobs:
       fail-fast: true
       matrix:
         php: [8.2, 8.3]
-        laravel: [10.*, 11.*]
-        include:
-          - laravel: 10.*
-            testbench: 8.*
-          - laravel: 11.*
-            testbench: 9.*
+        laravel: [11.*]
+        testbench: [9.*]
 
     name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }}
 
@@ -40,12 +36,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
-          if [ "${{ github.ref }}" = "refs/heads/v3" ] || [ "${{ github.base_ref }}" = "v3" ]; then
-            composer require "filament/filament:^3.0" --no-interaction --no-update
-          else
-            composer require "filament/filament:^4.0" --no-interaction --no-update
-          fi
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require --dev "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
           composer update --prefer-dist --no-interaction --no-progress
 
       - name: Execute tests
