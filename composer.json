@@ -26,7 +26,8 @@
     },
     "suggest": {
         "google/apiclient": "Required for Google Drive export functionality",
-        "leandrocfe/filament-apex-charts": "Required for chart visualization functionality"
+        "leandrocfe/filament-apex-charts": "Required for chart visualization functionality",
+        "barryvdh/laravel-dompdf": "Required for PDF export functionality"
     },
     "require-dev": {
         "orchestra/testbench": "^8.0|^9.0",

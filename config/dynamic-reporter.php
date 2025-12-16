@@ -88,4 +88,21 @@ return [
         'access_token' => env('GOOGLE_DRIVE_ACCESS_TOKEN'),
         'chunk_size' => env('GOOGLE_DRIVE_CHUNK_SIZE', 5 * 1024 * 1024),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | PDF Export Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for PDF export functionality.
+    | Requires barryvdh/laravel-dompdf package to be installed.
+    |
+    */
+    'pdf' => [
+        'logo_url' => env('DYNAMIC_REPORTER_PDF_LOGO'),
+        'company_name' => env('DYNAMIC_REPORTER_PDF_COMPANY', env('APP_NAME')),
+        'paper' => env('DYNAMIC_REPORTER_PDF_PAPER', 'a4'),
+        'orientation' => env('DYNAMIC_REPORTER_PDF_ORIENTATION', 'landscape'),
+        'max_rows' => env('DYNAMIC_REPORTER_PDF_MAX_ROWS', 1000),
+    ],
 ];

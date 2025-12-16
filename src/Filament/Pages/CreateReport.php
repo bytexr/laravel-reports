@@ -16,6 +16,7 @@ use ByteXR\DynamicReporter\Services\FilterFactory;
 use ByteXR\DynamicReporter\Services\GeminiReportInterpreter;
 use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
 use ByteXR\DynamicReporter\Services\ChartDataService;
+use ByteXR\DynamicReporter\Services\PdfExportService;
 use ByteXR\DynamicReporter\Services\StreamCsvExport;
 use Filament\Forms\Components\Actions;
 use Filament\Forms\Components\Actions\Action;
@@ -283,12 +284,22 @@ class CreateReport extends Page implements HasForms
                         ->color('primary')
                         ->action(fn () => $this->generatePreview()),
 
-                    Action::make('exportCsv')
-                        ->label('Export CSV')
+                    Action::make('streamCsv')
+                        ->label('Download CSV (Stream)')
                         ->icon('heroicon-o-arrow-down-tray')
                         ->color('gray')
-                        ->action(fn () => $this->exportReport('csv'))
-                        ->disabled(fn (Get $get): bool => empty($get('model'))),
+                        ->action(fn () => $this->streamDownloadCsv())
+                        ->disabled(fn (Get $get): bool => empty($get('model')))
+                        ->tooltip('Streaming download - handles large datasets without memory issues'),
+
+                    Action::make('downloadPdf')
+                        ->label('Download PDF')
+                        ->icon('heroicon-o-document')
+                        ->color('gray')
+                        ->action(fn () => $this->downloadPdf())
+                        ->disabled(fn (Get $get): bool => empty($get('model')))
+                        ->visible(fn (): bool => PdfExportService::isAvailable())
+                        ->tooltip('PDF export with header, stats, and formatted table'),
 
                     Action::make('exportExcel')
                         ->label('Export Excel')
@@ -423,6 +434,115 @@ class CreateReport extends Page implements HasForms
         $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $reportName);
 
         return $safeName . '_' . now()->format('Y-m-d_His') . '.' . $format;
+    }
+
+    /**
+     * Stream download CSV without loading all data into memory.
+     * Uses Laravel's streamDownload callback to write rows one by one.
+     */
+    protected function streamDownloadCsv(): mixed
+    {
+        $modelClass = $this->data['model'] ?? null;
+
+        if (empty($modelClass)) {
+            Notification::make()
+                ->title('No Model Selected')
+                ->body('Please select a model first.')
+                ->warning()
+                ->send();
+
+            return null;
+        }
+
+        try {
+            $columns = $this->getSelectedColumns();
+            $filters = $this->data['filters'] ?? [];
+            $sorts = $this->data['sorts'] ?? [];
+
+            $builder = new ReportQueryBuilder();
+            $cursor = $builder
+                ->forUser(auth()->user())
+                ->withRequest(request())
+                ->compileWithCursor($modelClass, $filters, $sorts, $columns);
+
+            $schema = $this->getSchemaForModel($modelClass);
+            $streamExport = new StreamCsvExport();
+            $fileName = $this->generateExportFileName('csv');
+
+            return $streamExport->streamDownload($cursor, $schema, $columns, $fileName);
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Export Error')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+
+            return null;
+        }
+    }
+
+    /**
+     * Download PDF report with header, stats, and formatted table.
+     * Uses strict paging to prevent memory overflow on large datasets.
+     */
+    protected function downloadPdf(): mixed
+    {
+        $modelClass = $this->data['model'] ?? null;
+
+        if (empty($modelClass)) {
+            Notification::make()
+                ->title('No Model Selected')
+                ->body('Please select a model first.')
+                ->warning()
+                ->send();
+
+            return null;
+        }
+
+        if (! PdfExportService::isAvailable()) {
+            Notification::make()
+                ->title('PDF Export Unavailable')
+                ->body('PDF export requires barryvdh/laravel-dompdf package.')
+                ->warning()
+                ->send();
+
+            return null;
+        }
+
+        try {
+            $columns = $this->getSelectedColumns();
+            $filters = $this->data['filters'] ?? [];
+            $sorts = $this->data['sorts'] ?? [];
+
+            $builder = new ReportQueryBuilder();
+            $query = $builder
+                ->forUser(auth()->user())
+                ->withRequest(request())
+                ->compile($modelClass, $filters, $sorts, $columns);
+
+            $data = $query->limit(1000)->get();
+
+            $schema = $this->getSchemaForModel($modelClass);
+            $pdfService = new PdfExportService();
+            $fileName = $this->generateExportFileName('pdf');
+
+            $options = [
+                'title' => $this->data['report_name'] ?? $schema->name,
+                'description' => $schema->description,
+                'filters' => $filters,
+                'generated_at' => now(),
+            ];
+
+            return $pdfService->downloadPdf($data, $schema, $columns, $fileName, $options);
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Export Error')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+
+            return null;
+        }
     }
 
     protected function getChartStep(): Step

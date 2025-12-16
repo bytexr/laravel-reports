@@ -8,6 +8,7 @@ use ByteXR\DynamicReporter\DTOs\ReportSchema;
 use Generator;
 use Illuminate\Support\LazyCollection;
 use Spatie\SimpleExcel\SimpleExcelWriter;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StreamCsvExport
 {
@@ -149,6 +150,94 @@ class StreamCsvExport
 
             yield array_combine($headers, $csvRow);
         }
+    }
+
+    /**
+     * Create a StreamedResponse for downloading CSV without loading all data into memory.
+     * Uses Laravel's streamDownload callback to write rows one by one.
+     *
+     * @param LazyCollection<int, mixed> $cursor
+     * @param array<int, string> $selectedColumns
+     */
+    public function streamDownload(
+        LazyCollection $cursor,
+        ReportSchema $schema,
+        array $selectedColumns = [],
+        string $filename = 'report.csv',
+    ): StreamedResponse {
+        $columns = empty($selectedColumns) ? $schema->getFieldNames() : $selectedColumns;
+
+        return response()->streamDownload(function () use ($cursor, $schema, $columns): void {
+            $output = fopen('php://output', 'w');
+
+            if ($output === false) {
+                throw new \RuntimeException('Unable to open php://output for writing');
+            }
+
+            $headers = $this->buildHeaders($schema, $columns);
+            fputcsv($output, $headers);
+
+            foreach ($cursor as $row) {
+                $csvRow = $this->buildRow($row, $schema, $columns);
+                fputcsv($output, $csvRow);
+
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            }
+
+            fclose($output);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
+    }
+
+    /**
+     * Create a StreamedResponse for downloading Excel without loading all data into memory.
+     *
+     * @param LazyCollection<int, mixed> $cursor
+     * @param array<int, string> $selectedColumns
+     */
+    public function streamDownloadExcel(
+        LazyCollection $cursor,
+        ReportSchema $schema,
+        array $selectedColumns = [],
+        string $filename = 'report.xlsx',
+    ): StreamedResponse {
+        $columns = empty($selectedColumns) ? $schema->getFieldNames() : $selectedColumns;
+
+        $tempFile = $this->exportToExcel($cursor, $schema, $columns);
+
+        return response()->streamDownload(function () use ($tempFile): void {
+            $handle = fopen($tempFile, 'r');
+
+            if ($handle === false) {
+                throw new \RuntimeException('Unable to open temp file for reading');
+            }
+
+            while (! feof($handle)) {
+                echo fread($handle, 8192);
+
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            }
+
+            fclose($handle);
+            @unlink($tempFile);
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 
     /**
