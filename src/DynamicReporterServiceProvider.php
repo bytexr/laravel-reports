@@ -6,6 +6,8 @@ namespace ByteXR\DynamicReporter;
 
 use ByteXR\DynamicReporter\Console\Commands\DispatchScheduledReports;
 use ByteXR\DynamicReporter\Contracts\Reportable;
+use ByteXR\DynamicReporter\Models\SavedReport;
+use ByteXR\DynamicReporter\Observers\SavedReportObserver;
 use ByteXR\DynamicReporter\Services\ReportCsvExporter;
 use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
 use Illuminate\Database\Eloquent\Model;
@@ -64,6 +66,15 @@ class DynamicReporterServiceProvider extends ServiceProvider
         }
 
         $this->registerReportableModels();
+        $this->registerObservers();
+    }
+
+    /**
+     * Register model observers.
+     */
+    protected function registerObservers(): void
+    {
+        SavedReport::observe(SavedReportObserver::class);
     }
 
     /**

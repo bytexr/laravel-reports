@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('report_versions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('saved_report_id')->constrained('saved_reports')->cascadeOnDelete();
+            $table->unsignedInteger('version_number');
+            $table->json('configuration');
+            $table->string('change_summary')->nullable();
+            $table->foreignId('changed_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('created_at');
+
+            $table->index(['saved_report_id', 'version_number']);
+            $table->index('created_at');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('report_versions');
+    }
+};

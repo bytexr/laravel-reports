@@ -6,6 +6,7 @@ namespace ByteXR\DynamicReporter\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SavedReport extends Model
 {
@@ -140,5 +141,59 @@ class SavedReport extends Model
     public static function getChartTypeOptions(): array
     {
         return self::CHART_TYPES;
+    }
+
+    /**
+     * @return HasMany<ReportVersion>
+     */
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ReportVersion::class)->orderByDesc('version_number');
+    }
+
+    /**
+     * Get the latest version number.
+     */
+    public function getLatestVersionNumber(): int
+    {
+        return $this->versions()->max('version_number') ?? 0;
+    }
+
+    /**
+     * Get a specific version by number.
+     */
+    public function getVersion(int $versionNumber): ?ReportVersion
+    {
+        return $this->versions()->where('version_number', $versionNumber)->first();
+    }
+
+    /**
+     * Restore the report to a specific version.
+     */
+    public function restoreToVersion(int $versionNumber): bool
+    {
+        $version = $this->getVersion($versionNumber);
+
+        if ($version === null) {
+            return false;
+        }
+
+        $configuration = $version->getConfiguration();
+
+        foreach ($configuration as $field => $value) {
+            if (in_array($field, $this->fillable, true)) {
+                $this->setAttribute($field, $value);
+            }
+        }
+
+        return $this->save();
+    }
+
+    /**
+     * Restore the report from a ReportVersion instance.
+     */
+    public function restoreFromVersion(ReportVersion $version): bool
+    {
+        return $this->restoreToVersion($version->version_number);
     }
 }

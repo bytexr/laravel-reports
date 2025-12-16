@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace ByteXR\DynamicReporter\Filament;
 
 use ByteXR\DynamicReporter\Filament\Pages\CreateReport;
+use ByteXR\DynamicReporter\Filament\Pages\ViewReport;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 
 class DynamicReporterPlugin implements Plugin
 {
     protected bool $hasCreateReportPage = true;
+
+    protected bool $hasViewReportPage = true;
 
     public static function make(): static
     {
@@ -32,10 +35,18 @@ class DynamicReporterPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
+        $pages = [];
+
         if ($this->hasCreateReportPage) {
-            $panel->pages([
-                CreateReport::class,
-            ]);
+            $pages[] = CreateReport::class;
+        }
+
+        if ($this->hasViewReportPage) {
+            $pages[] = ViewReport::class;
+        }
+
+        if (! empty($pages)) {
+            $panel->pages($pages);
         }
     }
 
@@ -59,6 +70,26 @@ class DynamicReporterPlugin implements Plugin
     public function withCreateReportPage(): static
     {
         $this->hasCreateReportPage = true;
+
+        return $this;
+    }
+
+    /**
+     * Disable the view/saved reports page.
+     */
+    public function withoutViewReportPage(): static
+    {
+        $this->hasViewReportPage = false;
+
+        return $this;
+    }
+
+    /**
+     * Enable the view/saved reports page.
+     */
+    public function withViewReportPage(): static
+    {
+        $this->hasViewReportPage = true;
 
         return $this;
     }
