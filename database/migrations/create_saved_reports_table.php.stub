@@ -22,6 +22,8 @@ return new class extends Migration
             $table->string('frequency')->nullable();
             $table->json('email_recipients')->nullable();
             $table->string('slack_webhook_url')->nullable();
+            $table->string('chart_type')->nullable();
+            $table->json('chart_config')->nullable();
             $table->boolean('is_active')->default(true);
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamps();

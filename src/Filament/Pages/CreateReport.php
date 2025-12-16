@@ -15,6 +15,7 @@ use ByteXR\DynamicReporter\ReportableRegistry;
 use ByteXR\DynamicReporter\Services\FilterFactory;
 use ByteXR\DynamicReporter\Services\GeminiReportInterpreter;
 use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
+use ByteXR\DynamicReporter\Services\ChartDataService;
 use ByteXR\DynamicReporter\Services\StreamCsvExport;
 use Filament\Forms\Components\Actions;
 use Filament\Forms\Components\Actions\Action;
@@ -119,6 +120,7 @@ class CreateReport extends Page implements HasForms
             $this->getDataSourceStep(),
             $this->getColumnsStep(),
             $this->getFiltersStep(),
+            $this->getChartStep(),
             $this->getPreviewStep(),
             $this->getScheduleStep(),
         ])
@@ -423,6 +425,157 @@ class CreateReport extends Page implements HasForms
         return $safeName . '_' . now()->format('Y-m-d_His') . '.' . $format;
     }
 
+    protected function getChartStep(): Step
+    {
+        return Step::make('Visualization')
+            ->description('Configure chart visualization')
+            ->icon('heroicon-o-chart-bar')
+            ->schema([
+                Section::make('Chart Configuration')
+                    ->description('Add a chart to visualize your report data')
+                    ->schema([
+                        Toggle::make('enable_chart')
+                            ->label('Enable Chart Visualization')
+                            ->live()
+                            ->default(false),
+
+                        Select::make('chart_type')
+                            ->label('Chart Type')
+                            ->options(SavedReport::getChartTypeOptions())
+                            ->default(SavedReport::CHART_TYPE_BAR)
+                            ->live()
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_chart'))
+                            ->helperText($this->getChartTypeHelperText()),
+
+                        Select::make('chart_x_axis')
+                            ->label('X-Axis (Categories/Labels)')
+                            ->options(fn (Get $get): array => $this->getChartAxisOptions($get('model')))
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_chart'))
+                            ->helperText('Select the field for the horizontal axis'),
+
+                        Select::make('chart_y_axis')
+                            ->label('Y-Axis (Values)')
+                            ->options(fn (Get $get): array => $this->getNumericFieldOptions($get('model')))
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_chart'))
+                            ->helperText('Select the numeric field for the vertical axis'),
+
+                        TextInput::make('chart_title')
+                            ->label('Chart Title')
+                            ->placeholder('e.g., Sales by Month')
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_chart'))
+                            ->maxLength(255),
+
+                        Actions::make([
+                            Action::make('suggestChart')
+                                ->label('Suggest Chart with AI')
+                                ->icon('heroicon-o-sparkles')
+                                ->color('gray')
+                                ->action(function (Get $get, Set $set): void {
+                                    $this->suggestChartWithAi($get, $set);
+                                })
+                                ->disabled(fn (Get $get): bool => empty($get('model'))),
+                        ])->visible(fn (Get $get): bool => (bool) $get('enable_chart')),
+                    ]),
+            ]);
+    }
+
+    protected function getChartTypeHelperText(): string
+    {
+        return 'Line: trends over time | Bar: category comparison | Pie: proportions | Area: volume over time | Donut: percentages';
+    }
+
+    /**
+     * Get field options suitable for chart axes.
+     *
+     * @return array<string, string>
+     */
+    protected function getChartAxisOptions(?string $modelClass): array
+    {
+        if (empty($modelClass)) {
+            return [];
+        }
+
+        $schema = $this->getSchemaForModel($modelClass);
+        $options = [];
+
+        foreach ($schema->fields as $field) {
+            $options[$field->name] = $field->label . ' (' . $field->type . ')';
+        }
+
+        return $options;
+    }
+
+    /**
+     * Get numeric field options for Y-axis.
+     *
+     * @return array<string, string>
+     */
+    protected function getNumericFieldOptions(?string $modelClass): array
+    {
+        if (empty($modelClass)) {
+            return [];
+        }
+
+        $schema = $this->getSchemaForModel($modelClass);
+        $options = [];
+
+        foreach ($schema->fields as $field) {
+            if (in_array($field->type, ['number', 'money'], true)) {
+                $options[$field->name] = $field->label;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Suggest chart configuration using AI.
+     */
+    protected function suggestChartWithAi(Get $get, Set $set): void
+    {
+        $modelClass = $get('model');
+
+        if (empty($modelClass)) {
+            Notification::make()
+                ->title('No Model Selected')
+                ->body('Please select a model first.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        try {
+            $schema = $this->getSchemaForModel($modelClass);
+            $interpreter = new GeminiReportInterpreter();
+
+            $suggestedType = $interpreter->suggestChartTypeFromSchema($schema, $get('group_by') ?? []);
+            $suggestedAxes = $interpreter->suggestChartAxes($schema);
+
+            $set('chart_type', $suggestedType);
+
+            if ($suggestedAxes['x_axis'] !== null) {
+                $set('chart_x_axis', $suggestedAxes['x_axis']);
+            }
+
+            if ($suggestedAxes['y_axis'] !== null) {
+                $set('chart_y_axis', $suggestedAxes['y_axis']);
+            }
+
+            Notification::make()
+                ->title('Chart Suggested')
+                ->body('AI has suggested a chart configuration based on your data.')
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Suggestion Error')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
     protected function getScheduleStep(): Step
     {
         return Step::make('Schedule')
@@ -545,6 +698,18 @@ class CreateReport extends Page implements HasForms
                 }
             }
 
+            $chartType = null;
+            $chartConfig = null;
+
+            if (! empty($this->data['enable_chart'])) {
+                $chartType = $this->data['chart_type'] ?? null;
+                $chartConfig = [
+                    'x_axis' => $this->data['chart_x_axis'] ?? null,
+                    'y_axis' => $this->data['chart_y_axis'] ?? null,
+                    'title' => $this->data['chart_title'] ?? $reportName,
+                ];
+            }
+
             $report = SavedReport::create([
                 'name' => $reportName,
                 'model_class' => $modelClass,
@@ -556,6 +721,8 @@ class CreateReport extends Page implements HasForms
                 'slack_webhook_url' => ! empty($this->data['enable_slack'])
                     ? ($this->data['slack_webhook_url'] ?? null)
                     : null,
+                'chart_type' => $chartType,
+                'chart_config' => $chartConfig,
                 'is_active' => true,
                 'user_id' => auth()->id(),
             ]);
