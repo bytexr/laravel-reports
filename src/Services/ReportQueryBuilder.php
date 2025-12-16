@@ -19,6 +19,12 @@ class ReportQueryBuilder
 {
     use EvaluatesClosures;
 
+    /**
+     * Maximum number of joins/relationships allowed per query.
+     * This prevents performance degradation from excessive joins.
+     */
+    public const MAX_JOINS = 5;
+
     protected FilterFactory $filterFactory;
 
     protected ?Authenticatable $user = null;
@@ -28,9 +34,22 @@ class ReportQueryBuilder
     /** @var array<string, mixed> */
     protected array $customInjections = [];
 
-    public function __construct(?FilterFactory $filterFactory = null)
+    protected int $maxJoins;
+
+    public function __construct(?FilterFactory $filterFactory = null, ?int $maxJoins = null)
     {
         $this->filterFactory = $filterFactory ?? new FilterFactory();
+        $this->maxJoins = $maxJoins ?? self::MAX_JOINS;
+    }
+
+    /**
+     * Set a custom max joins limit.
+     */
+    public function setMaxJoins(int $maxJoins): self
+    {
+        $this->maxJoins = max(1, $maxJoins);
+
+        return $this;
     }
 
     /**
@@ -371,8 +390,10 @@ class ReportQueryBuilder
 
     /**
      * Apply eager loading for relationship fields.
+     * Enforces the max joins limit to prevent performance degradation.
      *
      * @param array<int, string> $selectedFields
+     * @throws InvalidArgumentException When max joins limit is exceeded
      */
     protected function applyRelationships(
         Builder $query,
@@ -390,9 +411,50 @@ class ReportQueryBuilder
             }
         }
 
-        if (! empty($relationships)) {
-            $query->with(array_unique($relationships));
+        $uniqueRelationships = array_unique($relationships);
+
+        if (count($uniqueRelationships) > $this->maxJoins) {
+            throw new InvalidArgumentException(
+                "Query exceeds maximum allowed joins ({$this->maxJoins}). " .
+                "Requested " . count($uniqueRelationships) . " relationships. " .
+                "Please reduce the number of relationship fields selected."
+            );
         }
+
+        if (! empty($uniqueRelationships)) {
+            $query->with($uniqueRelationships);
+        }
+    }
+
+    /**
+     * Count the total number of relationships that would be loaded.
+     *
+     * @param array<int, string> $selectedFields
+     */
+    public function countRelationships(ReportSchema $schema, array $selectedFields = []): int
+    {
+        $relationships = [];
+        $fieldsToCheck = empty($selectedFields) ? $schema->getFieldNames() : $selectedFields;
+
+        foreach ($fieldsToCheck as $fieldName) {
+            $field = $schema->getField($fieldName);
+
+            if ($field !== null && $field->isRelationship() && $field->relationship !== null) {
+                $relationships[] = $field->relationship;
+            }
+        }
+
+        return count(array_unique($relationships));
+    }
+
+    /**
+     * Check if the query would exceed the max joins limit.
+     *
+     * @param array<int, string> $selectedFields
+     */
+    public function wouldExceedMaxJoins(ReportSchema $schema, array $selectedFields = []): bool
+    {
+        return $this->countRelationships($schema, $selectedFields) > $this->maxJoins;
     }
 
     /**

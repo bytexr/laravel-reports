@@ -281,6 +281,7 @@ PROMPT;
 
     /**
      * Validate and filter columns to only include valid field names.
+     * Uses fuzzy matching to correct AI hallucinations.
      *
      * @param array<int, mixed> $columns
      * @param array<int, string> $validFieldNames
@@ -292,14 +293,70 @@ PROMPT;
             return $validFieldNames;
         }
 
-        return array_values(array_filter(
-            $columns,
-            static fn (mixed $col): bool => is_string($col) && in_array($col, $validFieldNames, true),
-        ));
+        $validatedColumns = [];
+
+        foreach ($columns as $col) {
+            if (! is_string($col)) {
+                continue;
+            }
+
+            $matchedField = $this->fuzzyMatchField($col, $validFieldNames);
+
+            if ($matchedField !== null && ! in_array($matchedField, $validatedColumns, true)) {
+                $validatedColumns[] = $matchedField;
+            }
+        }
+
+        return $validatedColumns;
+    }
+
+    /**
+     * Fuzzy match a field name against valid field names.
+     * Returns the matched field name or null if no good match found.
+     *
+     * @param array<int, string> $validFieldNames
+     */
+    protected function fuzzyMatchField(string $input, array $validFieldNames): ?string
+    {
+        $input = strtolower(trim($input));
+
+        if (in_array($input, array_map('strtolower', $validFieldNames), true)) {
+            foreach ($validFieldNames as $validName) {
+                if (strtolower($validName) === $input) {
+                    return $validName;
+                }
+            }
+        }
+
+        $bestMatch = null;
+        $bestDistance = PHP_INT_MAX;
+        $inputLength = strlen($input);
+
+        foreach ($validFieldNames as $validName) {
+            $validNameLower = strtolower($validName);
+            $distance = levenshtein($input, $validNameLower);
+
+            $threshold = max(2, (int) ceil($inputLength * 0.3));
+
+            if ($distance < $bestDistance && $distance <= $threshold) {
+                $bestDistance = $distance;
+                $bestMatch = $validName;
+            }
+
+            if (str_contains($validNameLower, $input) || str_contains($input, $validNameLower)) {
+                if ($distance < $bestDistance || $bestMatch === null) {
+                    $bestDistance = $distance;
+                    $bestMatch = $validName;
+                }
+            }
+        }
+
+        return $bestMatch;
     }
 
     /**
      * Validate and filter filters to only include valid configurations.
+     * Uses fuzzy matching to correct AI hallucinations in field names.
      *
      * @param array<int, mixed> $filters
      * @return array<int, array{field: string, operator: string, value: mixed, value2?: mixed}>
@@ -307,6 +364,7 @@ PROMPT;
     protected function validateFilters(array $filters, ReportSchema $schema): array
     {
         $validFilters = [];
+        $validFieldNames = $schema->getFieldNames();
 
         foreach ($filters as $filter) {
             if (! is_array($filter)) {
@@ -319,7 +377,13 @@ PROMPT;
                 continue;
             }
 
-            $field = $schema->getField($fieldName);
+            $matchedFieldName = $this->fuzzyMatchField($fieldName, $validFieldNames);
+
+            if ($matchedFieldName === null) {
+                continue;
+            }
+
+            $field = $schema->getField($matchedFieldName);
 
             if ($field === null || ! $field->isFilterable) {
                 continue;
@@ -332,7 +396,7 @@ PROMPT;
             }
 
             $validFilter = [
-                'field' => $fieldName,
+                'field' => $matchedFieldName,
                 'operator' => $operator,
                 'value' => $filter['value'] ?? null,
             ];
@@ -349,6 +413,7 @@ PROMPT;
 
     /**
      * Validate and filter sort configurations.
+     * Uses fuzzy matching to correct AI hallucinations in field names.
      *
      * @param array<int, mixed> $sorts
      * @return array<int, array{field: string, direction: string}>
@@ -356,6 +421,7 @@ PROMPT;
     protected function validateSort(array $sorts, ReportSchema $schema): array
     {
         $validSorts = [];
+        $validFieldNames = $schema->getFieldNames();
 
         foreach ($sorts as $sort) {
             if (! is_array($sort)) {
@@ -368,7 +434,13 @@ PROMPT;
                 continue;
             }
 
-            $field = $schema->getField($fieldName);
+            $matchedFieldName = $this->fuzzyMatchField($fieldName, $validFieldNames);
+
+            if ($matchedFieldName === null) {
+                continue;
+            }
+
+            $field = $schema->getField($matchedFieldName);
 
             if ($field === null || ! $field->isSortable) {
                 continue;
@@ -381,7 +453,7 @@ PROMPT;
             }
 
             $validSorts[] = [
-                'field' => $fieldName,
+                'field' => $matchedFieldName,
                 'direction' => $direction,
             ];
         }
