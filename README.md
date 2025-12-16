@@ -10,6 +10,8 @@ A Filament-native, AI-powered reporting engine for Laravel that allows users to 
 - **AI-Powered**: Natural language report generation using Google Gemini
 - **Filament Integration**: Native wizard UI with drag-and-drop configuration
 - **Custom Metrics**: Define calculated business fields (margin, LTV, redemption rate)
+- **Type-Safe Enums**: PHP 8.1+ backed enums for field types, operators, and chart types
+- **Fully Extensible**: Protected methods, Service Container bindings, and configurable models
 - **Streaming Exports**: Memory-efficient CSV/Excel exports for large datasets (10k+ rows)
 - **PDF Generation**: Professional reports with headers, stats, and formatted tables
 - **Google Drive Integration**: Direct export to cloud storage
@@ -181,6 +183,12 @@ return [
     // Allowlisted models
     'models' => [],
 
+    // Custom model classes (for extending package models)
+    'model_classes' => [
+        'saved_report' => \ByteXR\DynamicReporter\Models\SavedReport::class,
+        'report_version' => \ByteXR\DynamicReporter\Models\ReportVersion::class,
+    ],
+
     // Gemini AI settings
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
@@ -271,6 +279,101 @@ The description is fed directly to the AI, so be explicit about:
 - Alternative names users might use
 
 ## Advanced Usage
+
+### Type-Safe Enums
+
+The package uses PHP 8.1+ backed enums for type safety throughout. These are available for use in your application:
+
+```php
+use ByteXR\DynamicReporter\Enums\FieldType;
+use ByteXR\DynamicReporter\Enums\FilterOperator;
+use ByteXR\DynamicReporter\Enums\SortDirection;
+use ByteXR\DynamicReporter\Enums\ChartType;
+use ByteXR\DynamicReporter\Enums\MetricType;
+use ByteXR\DynamicReporter\Enums\ReportExportFormat;
+use ByteXR\DynamicReporter\Enums\ReportVisibility;
+
+// Field types
+FieldType::Text;      // 'text'
+FieldType::Number;    // 'number'
+FieldType::Date;      // 'date'
+FieldType::Datetime;  // 'datetime'
+FieldType::Boolean;   // 'boolean'
+FieldType::Money;     // 'money'
+
+// Get valid operators for a field type
+$operators = FilterOperator::forFieldType(FieldType::Number);
+// Returns: [Equals, NotEquals, GreaterThan, LessThan, ...]
+
+// Chart types with helpers
+ChartType::Line->apexType();  // 'line'
+ChartType::Pie->isPieType();  // true
+
+// All enums have label() and options() methods for UI
+FieldType::options();  // ['text' => 'Text', 'number' => 'Number', ...]
+```
+
+### Extending Models
+
+You can extend the package's models by configuring your own classes:
+
+```php
+// config/dynamic-reporter.php
+return [
+    'model_classes' => [
+        'saved_report' => \App\Models\CustomSavedReport::class,
+        'report_version' => \App\Models\CustomReportVersion::class,
+    ],
+];
+```
+
+Then create your custom model extending the base:
+
+```php
+namespace App\Models;
+
+use ByteXR\DynamicReporter\Models\SavedReport as BaseSavedReport;
+
+class CustomSavedReport extends BaseSavedReport
+{
+    // Add custom relationships, scopes, or methods
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+}
+```
+
+Access the configured model class via the service provider:
+
+```php
+use ByteXR\DynamicReporter\DynamicReporterServiceProvider;
+
+$modelClass = DynamicReporterServiceProvider::getSavedReportModel();
+$report = $modelClass::find(1);
+```
+
+### Service Container Bindings
+
+All core services are bound to the Laravel service container for easy customization:
+
+```php
+use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
+use ByteXR\DynamicReporter\Services\GeminiReportInterpreter;
+use ByteXR\DynamicReporter\Services\FilterFactory;
+use ByteXR\DynamicReporter\Services\ChartDataService;
+
+// Resolve from container
+$queryBuilder = app(ReportQueryBuilder::class);
+$interpreter = app(GeminiReportInterpreter::class);
+
+// Override with your own implementation
+$this->app->singleton(ReportQueryBuilder::class, function ($app) {
+    return new CustomReportQueryBuilder($app->make(FilterFactory::class));
+});
+```
+
+All properties and methods are `protected` (not `private`) to allow extending classes without copying entire files.
 
 ### Scheduling Reports
 
