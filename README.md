@@ -26,7 +26,7 @@ A Filament-native, AI-powered reporting engine for Laravel that allows users to 
 ## Requirements
 
 - PHP 8.2+
-- Laravel 10+ or 11+
+- Laravel 11.28+
 - Filament 4.x
 
 ## Version Compatibility
