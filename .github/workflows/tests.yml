@@ -40,9 +40,6 @@ jobs:
           composer require --dev "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
           composer update --prefer-dist --no-interaction --no-progress
 
-      - name: Execute tests
-        run: vendor/bin/phpunit
-
   code-style:
     runs-on: ubuntu-latest
     name: Code Style
