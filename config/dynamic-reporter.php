@@ -9,12 +9,64 @@ return [
     |--------------------------------------------------------------------------
     |
     | This array contains the list of models that are allowed to be used
-    | for reporting. Only models listed here and implementing the Reportable
-    | interface will be available in the report builder.
+    | for reporting. Models can use either:
+    | - The #[ReportDefinition] attribute (recommended)
+    | - The legacy Reportable trait/interface
+    |
+    | Both approaches are supported for backward compatibility.
     |
     */
     'models' => [
         // \App\Models\User::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Report Templates
+    |--------------------------------------------------------------------------
+    |
+    | Register custom report templates that provide pre-configured report
+    | setups. Templates help users quickly create common reports without
+    | starting from scratch.
+    |
+    */
+    'templates' => [
+        // \App\Reports\Templates\OrdersOverviewTemplate::class,
+        // \App\Reports\Templates\CustomerListTemplate::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationship Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configure how relationships are handled in the report builder.
+    |
+    */
+    'relationships' => [
+        'max_depth' => env('DYNAMIC_REPORTER_MAX_RELATIONSHIP_DEPTH', 3),
+        'warn_at_depth' => env('DYNAMIC_REPORTER_WARN_RELATIONSHIP_DEPTH', 2),
+        'excluded_relations' => [
+            'pivot',
+            'media',
+            'notifications',
+            'tokens',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | UI Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configure the report builder user interface.
+    |
+    */
+    'ui' => [
+        'wizard_enabled' => true,
+        'show_advanced_options' => false,
+        'preview_limit' => 10,
+        'field_examples_enabled' => true,
     ],
 
     /*
