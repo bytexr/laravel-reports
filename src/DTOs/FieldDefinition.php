@@ -7,47 +7,42 @@ namespace ByteXR\DynamicReporter\DTOs;
 final readonly class FieldDefinition
 {
     /**
-     * @param string $name The internal field name (column name or accessor)
+     * @param string $name The internal field name (used as identifier)
      * @param string $label The human-readable label for the field
-     * @param string $type The field type (string, integer, float, boolean, date, datetime, etc.)
-     * @param bool $sortable Whether the field can be sorted
-     * @param bool $filterable Whether the field can be filtered
-     * @param bool $exportable Whether the field can be exported
+     * @param string|null $dbColumn The database column name (defaults to name if null)
+     * @param string $type The field type (text, number, date, datetime, boolean)
+     * @param bool $isSortable Whether the field can be sorted
+     * @param bool $isFilterable Whether the field can be filtered
+     * @param bool $isExportable Whether the field can be exported
+     * @param string|null $relationship The relationship name if this field comes from a relation
      * @param array<string, mixed> $meta Additional metadata for the field
      */
     public function __construct(
         public string $name,
         public string $label,
-        public string $type = 'string',
-        public bool $sortable = true,
-        public bool $filterable = true,
-        public bool $exportable = true,
+        public ?string $dbColumn = null,
+        public string $type = 'text',
+        public bool $isSortable = false,
+        public bool $isFilterable = true,
+        public bool $isExportable = true,
+        public ?string $relationship = null,
         public array $meta = [],
     ) {}
 
     /**
-     * Create a new FieldDefinition instance.
-     *
-     * @param array<string, mixed> $meta
+     * Get the database column name (falls back to name if not set).
      */
-    public static function make(
-        string $name,
-        string $label,
-        string $type = 'string',
-        bool $sortable = true,
-        bool $filterable = true,
-        bool $exportable = true,
-        array $meta = [],
-    ): self {
-        return new self(
-            name: $name,
-            label: $label,
-            type: $type,
-            sortable: $sortable,
-            filterable: $filterable,
-            exportable: $exportable,
-            meta: $meta,
-        );
+    public function getDbColumn(): string
+    {
+        return $this->dbColumn ?? $this->name;
+    }
+
+    /**
+     * Check if this field belongs to a relationship.
+     */
+    public function isRelationship(): bool
+    {
+        return $this->relationship !== null;
     }
 
     /**
@@ -60,10 +55,12 @@ final readonly class FieldDefinition
         return [
             'name' => $this->name,
             'label' => $this->label,
+            'db_column' => $this->getDbColumn(),
             'type' => $this->type,
-            'sortable' => $this->sortable,
-            'filterable' => $this->filterable,
-            'exportable' => $this->exportable,
+            'is_sortable' => $this->isSortable,
+            'is_filterable' => $this->isFilterable,
+            'is_exportable' => $this->isExportable,
+            'relationship' => $this->relationship,
             'meta' => $this->meta,
         ];
     }

@@ -70,7 +70,7 @@ final readonly class ReportSchema
     {
         return array_values(array_filter(
             $this->fields,
-            static fn (FieldDefinition $field): bool => $field->sortable,
+            static fn (FieldDefinition $field): bool => $field->isSortable,
         ));
     }
 
@@ -83,7 +83,7 @@ final readonly class ReportSchema
     {
         return array_values(array_filter(
             $this->fields,
-            static fn (FieldDefinition $field): bool => $field->filterable,
+            static fn (FieldDefinition $field): bool => $field->isFilterable,
         ));
     }
 
@@ -96,7 +96,7 @@ final readonly class ReportSchema
     {
         return array_values(array_filter(
             $this->fields,
-            static fn (FieldDefinition $field): bool => $field->exportable,
+            static fn (FieldDefinition $field): bool => $field->isExportable,
         ));
     }
 
