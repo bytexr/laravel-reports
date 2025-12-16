@@ -21,7 +21,11 @@
         "php": "^8.2",
         "dragonmantank/cron-expression": "^3.3",
         "illuminate/contracts": "^10.0|^11.0",
-        "illuminate/support": "^10.0|^11.0"
+        "illuminate/support": "^10.0|^11.0",
+        "spatie/simple-excel": "^3.0"
+    },
+    "suggest": {
+        "google/apiclient": "Required for Google Drive export functionality"
     },
     "require-dev": {
         "orchestra/testbench": "^8.0|^9.0",

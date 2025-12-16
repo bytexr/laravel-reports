@@ -72,4 +72,20 @@ return [
         'monthly' => '0 8 1 * *',
         'quarterly' => '0 8 1 1,4,7,10 *',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Google Drive Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for Google Drive export functionality.
+    | Requires google/apiclient package to be installed.
+    |
+    */
+    'google_drive' => [
+        'credentials_path' => env('GOOGLE_DRIVE_CREDENTIALS_PATH'),
+        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
+        'access_token' => env('GOOGLE_DRIVE_ACCESS_TOKEN'),
+        'chunk_size' => env('GOOGLE_DRIVE_CHUNK_SIZE', 5 * 1024 * 1024),
+    ],
 ];

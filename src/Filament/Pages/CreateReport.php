@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace ByteXR\DynamicReporter\Filament\Pages;
 
 use ByteXR\DynamicReporter\Contracts\Reportable;
+use ByteXR\DynamicReporter\Drivers\GoogleDriveExportDriver;
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
 use ByteXR\DynamicReporter\DTOs\ReportSchema;
 use ByteXR\DynamicReporter\Exceptions\GeminiException;
+use ByteXR\DynamicReporter\Jobs\ExportReportToExternalService;
 use ByteXR\DynamicReporter\Models\SavedReport;
 use ByteXR\DynamicReporter\ReportableRegistry;
 use ByteXR\DynamicReporter\Services\FilterFactory;
 use ByteXR\DynamicReporter\Services\GeminiReportInterpreter;
 use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
+use ByteXR\DynamicReporter\Services\StreamCsvExport;
 use Filament\Forms\Components\Actions;
 use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
@@ -277,12 +280,147 @@ class CreateReport extends Page implements HasForms
                         ->icon('heroicon-o-play')
                         ->color('primary')
                         ->action(fn () => $this->generatePreview()),
+
+                    Action::make('exportCsv')
+                        ->label('Export CSV')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->color('gray')
+                        ->action(fn () => $this->exportReport('csv'))
+                        ->disabled(fn (Get $get): bool => empty($get('model'))),
+
+                    Action::make('exportExcel')
+                        ->label('Export Excel')
+                        ->icon('heroicon-o-table-cells')
+                        ->color('gray')
+                        ->action(fn () => $this->exportReport('xlsx'))
+                        ->disabled(fn (Get $get): bool => empty($get('model'))),
+
+                    Action::make('exportGoogleDrive')
+                        ->label('Save to Google Drive')
+                        ->icon('heroicon-o-cloud-arrow-up')
+                        ->color('success')
+                        ->action(fn () => $this->exportToGoogleDrive())
+                        ->disabled(fn (Get $get): bool => empty($get('model')))
+                        ->visible(fn (): bool => $this->isGoogleDriveConfigured()),
                 ]),
 
                 Placeholder::make('preview')
                     ->label('')
                     ->content(fn (): HtmlString => $this->getPreviewContent()),
             ]);
+    }
+
+    protected function isGoogleDriveConfigured(): bool
+    {
+        return GoogleDriveExportDriver::isConfigured();
+    }
+
+    protected function exportReport(string $format): void
+    {
+        $modelClass = $this->data['model'] ?? null;
+
+        if (empty($modelClass)) {
+            Notification::make()
+                ->title('No Model Selected')
+                ->body('Please select a model first.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        try {
+            $columns = $this->getSelectedColumns();
+            $filters = $this->data['filters'] ?? [];
+            $sorts = $this->data['sorts'] ?? [];
+
+            $builder = new ReportQueryBuilder();
+            $cursor = $builder
+                ->forUser(auth()->user())
+                ->withRequest(request())
+                ->compileWithCursor($modelClass, $filters, $sorts, $columns);
+
+            $schema = $this->getSchemaForModel($modelClass);
+            $streamExport = new StreamCsvExport();
+
+            $filePath = $format === 'xlsx'
+                ? $streamExport->exportToExcel($cursor, $schema, $columns)
+                : $streamExport->exportFromCursor($cursor, $schema, $columns);
+
+            $fileName = $this->generateExportFileName($format);
+
+            Notification::make()
+                ->title('Export Complete')
+                ->body("Your {$format} file has been generated.")
+                ->success()
+                ->send();
+
+            return response()->download($filePath, $fileName)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Export Error')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    protected function exportToGoogleDrive(): void
+    {
+        $modelClass = $this->data['model'] ?? null;
+
+        if (empty($modelClass)) {
+            Notification::make()
+                ->title('No Model Selected')
+                ->body('Please select a model first.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        try {
+            $columns = $this->getSelectedColumns();
+            $filters = $this->data['filters'] ?? [];
+            $sorts = $this->data['sorts'] ?? [];
+
+            $report = SavedReport::create([
+                'name' => $this->data['report_name'] ?? 'Untitled Report',
+                'model_class' => $modelClass,
+                'columns' => $columns,
+                'filters' => $filters,
+                'sort' => $sorts,
+                'is_active' => false,
+                'user_id' => auth()->id(),
+            ]);
+
+            ExportReportToExternalService::dispatch(
+                $report,
+                'csv',
+                'google_drive',
+                auth()->user()?->email
+            );
+
+            Notification::make()
+                ->title('Export Queued')
+                ->body('Your report is being exported to Google Drive. You will receive an email when complete.')
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Export Error')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    protected function generateExportFileName(string $format): string
+    {
+        $reportName = $this->data['report_name'] ?? 'report';
+        $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $reportName);
+
+        return $safeName . '_' . now()->format('Y-m-d_His') . '.' . $format;
     }
 
     protected function getScheduleStep(): Step

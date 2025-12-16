@@ -458,6 +458,56 @@ class ReportQueryBuilder
     }
 
     /**
+     * Compile a report query and return a cursor for streaming.
+     * Uses cursor() instead of get() to avoid loading entire dataset into memory.
+     *
+     * @param class-string<Model&Reportable> $modelClass
+     * @param array<int, array{field: string, operator: string, value: mixed, value2?: mixed}> $filters
+     * @param array<int, array{field: string, direction: string}> $sorts
+     * @param array<int, string> $selectedFields
+     * @return \Illuminate\Support\LazyCollection<int, Model>
+     */
+    public function compileWithCursor(
+        string $modelClass,
+        array $filters = [],
+        array $sorts = [],
+        array $selectedFields = [],
+        ?int $limit = null,
+    ): \Illuminate\Support\LazyCollection {
+        $query = $this->compile($modelClass, $filters, $sorts, $selectedFields);
+
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        return $query->cursor();
+    }
+
+    /**
+     * Compile a report query and chunk results for memory-efficient processing.
+     *
+     * @param class-string<Model&Reportable> $modelClass
+     * @param array<int, array{field: string, operator: string, value: mixed, value2?: mixed}> $filters
+     * @param array<int, array{field: string, direction: string}> $sorts
+     * @param array<int, string> $selectedFields
+     * @param callable(\Illuminate\Support\Collection<int, Model>): void $callback
+     */
+    public function compileAndChunk(
+        string $modelClass,
+        array $filters = [],
+        array $sorts = [],
+        array $selectedFields = [],
+        int $chunkSize = 1000,
+        callable $callback = null,
+    ): void {
+        $query = $this->compile($modelClass, $filters, $sorts, $selectedFields);
+
+        if ($callback !== null) {
+            $query->chunk($chunkSize, $callback);
+        }
+    }
+
+    /**
      * Validate that the model class implements Reportable.
      *
      * @param class-string $modelClass
