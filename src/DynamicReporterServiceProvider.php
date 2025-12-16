@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace ByteXR\DynamicReporter;
 
+use ByteXR\DynamicReporter\Console\Commands\DispatchScheduledReports;
 use ByteXR\DynamicReporter\Contracts\Reportable;
+use ByteXR\DynamicReporter\Services\ReportCsvExporter;
+use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +26,14 @@ class DynamicReporterServiceProvider extends ServiceProvider
         $this->app->singleton(ReportableRegistry::class, function (): ReportableRegistry {
             return ReportableRegistry::getInstance();
         });
+
+        $this->app->singleton(ReportQueryBuilder::class, function (): ReportQueryBuilder {
+            return new ReportQueryBuilder();
+        });
+
+        $this->app->singleton(ReportCsvExporter::class, function (): ReportCsvExporter {
+            return new ReportCsvExporter();
+        });
     }
 
     /**
@@ -39,6 +50,18 @@ class DynamicReporterServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../resources/views' => resource_path('views/vendor/dynamic-reporter'),
         ], 'dynamic-reporter-views');
+
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+
+        $this->publishes([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
+        ], 'dynamic-reporter-migrations');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                DispatchScheduledReports::class,
+            ]);
+        }
 
         $this->registerReportableModels();
     }

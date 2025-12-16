@@ -8,6 +8,7 @@ use ByteXR\DynamicReporter\Contracts\Reportable;
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
 use ByteXR\DynamicReporter\DTOs\ReportSchema;
 use ByteXR\DynamicReporter\Exceptions\GeminiException;
+use ByteXR\DynamicReporter\Models\SavedReport;
 use ByteXR\DynamicReporter\ReportableRegistry;
 use ByteXR\DynamicReporter\Services\FilterFactory;
 use ByteXR\DynamicReporter\Services\GeminiReportInterpreter;
@@ -19,8 +20,10 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Wizard;
 use Filament\Forms\Components\Wizard\Step;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -114,9 +117,15 @@ class CreateReport extends Page implements HasForms
             $this->getColumnsStep(),
             $this->getFiltersStep(),
             $this->getPreviewStep(),
+            $this->getScheduleStep(),
         ])
             ->skippable()
-            ->persistStepInQueryString();
+            ->persistStepInQueryString()
+            ->submitAction(
+                Action::make('save')
+                    ->label('Save Report')
+                    ->action(fn () => $this->saveReport())
+            );
     }
 
     protected function getDataSourceStep(): Step
@@ -274,6 +283,159 @@ class CreateReport extends Page implements HasForms
                     ->label('')
                     ->content(fn (): HtmlString => $this->getPreviewContent()),
             ]);
+    }
+
+    protected function getScheduleStep(): Step
+    {
+        return Step::make('Schedule')
+            ->description('Configure scheduled delivery')
+            ->icon('heroicon-o-clock')
+            ->schema([
+                Section::make('Report Details')
+                    ->schema([
+                        TextInput::make('report_name')
+                            ->label('Report Name')
+                            ->required()
+                            ->maxLength(255)
+                            ->placeholder('e.g., Weekly Sales Report'),
+                    ]),
+
+                Section::make('Schedule')
+                    ->description('Configure when this report should run')
+                    ->schema([
+                        Toggle::make('enable_schedule')
+                            ->label('Enable Scheduled Delivery')
+                            ->live()
+                            ->default(false),
+
+                        Select::make('frequency_preset')
+                            ->label('Frequency')
+                            ->options([
+                                'daily' => 'Daily (8:00 AM)',
+                                'weekly' => 'Weekly (Monday 8:00 AM)',
+                                'monthly' => 'Monthly (1st day 8:00 AM)',
+                                'quarterly' => 'Quarterly (1st day 8:00 AM)',
+                                'custom' => 'Custom (Cron Expression)',
+                            ])
+                            ->live()
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_schedule')),
+
+                        TextInput::make('frequency')
+                            ->label('Cron Expression')
+                            ->placeholder('0 8 * * *')
+                            ->helperText('Standard cron format: minute hour day month weekday')
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_schedule') && $get('frequency_preset') === 'custom'),
+                    ]),
+
+                Section::make('Email Notifications')
+                    ->description('Send report via email')
+                    ->schema([
+                        TagsInput::make('email_recipients')
+                            ->label('Email Recipients')
+                            ->placeholder('Add email addresses')
+                            ->splitKeys(['Tab', ',', ' '])
+                            ->helperText('Press Tab or comma to add multiple emails'),
+                    ])
+                    ->visible(fn (Get $get): bool => (bool) $get('enable_schedule')),
+
+                Section::make('Slack Notifications')
+                    ->description('Send report notifications to Slack')
+                    ->schema([
+                        Toggle::make('enable_slack')
+                            ->label('Notify via Slack')
+                            ->live()
+                            ->default(false)
+                            ->helperText('Send a notification to Slack when the report is generated'),
+
+                        TextInput::make('slack_webhook_url')
+                            ->label('Slack Webhook URL')
+                            ->url()
+                            ->placeholder('https://hooks.slack.com/services/...')
+                            ->visible(fn (Get $get): bool => (bool) $get('enable_slack'))
+                            ->helperText('Enter your Slack incoming webhook URL'),
+                    ])
+                    ->visible(fn (): bool => $this->isSlackConfigured()),
+            ]);
+    }
+
+    protected function isSlackConfigured(): bool
+    {
+        return SavedReport::isSlackConfigured();
+    }
+
+    protected function saveReport(): void
+    {
+        $modelClass = $this->data['model'] ?? null;
+
+        if (empty($modelClass)) {
+            Notification::make()
+                ->title('No Model Selected')
+                ->body('Please select a model first.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $reportName = $this->data['report_name'] ?? null;
+
+        if (empty($reportName)) {
+            Notification::make()
+                ->title('Report Name Required')
+                ->body('Please enter a name for your report.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        try {
+            $columns = $this->getSelectedColumns();
+            $filters = $this->data['filters'] ?? [];
+            $sorts = $this->data['sorts'] ?? [];
+
+            $frequency = null;
+
+            if (! empty($this->data['enable_schedule'])) {
+                $preset = $this->data['frequency_preset'] ?? null;
+
+                if ($preset === 'custom') {
+                    $frequency = $this->data['frequency'] ?? null;
+                } elseif ($preset !== null) {
+                    $presets = config('dynamic-reporter.schedule_presets', []);
+                    $frequency = $presets[$preset] ?? null;
+                }
+            }
+
+            $report = SavedReport::create([
+                'name' => $reportName,
+                'model_class' => $modelClass,
+                'columns' => $columns,
+                'filters' => $filters,
+                'sort' => $sorts,
+                'frequency' => $frequency,
+                'email_recipients' => $this->data['email_recipients'] ?? null,
+                'slack_webhook_url' => ! empty($this->data['enable_slack'])
+                    ? ($this->data['slack_webhook_url'] ?? null)
+                    : null,
+                'is_active' => true,
+                'user_id' => auth()->id(),
+            ]);
+
+            Notification::make()
+                ->title('Report Saved')
+                ->body("Report \"{$reportName}\" has been saved successfully.")
+                ->success()
+                ->send();
+
+            $this->redirect(static::getUrl());
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Save Error')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 
     /**

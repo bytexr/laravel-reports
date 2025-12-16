@@ -33,4 +33,43 @@ return [
         'timeout' => env('GEMINI_TIMEOUT', 30),
         'max_tokens' => env('GEMINI_MAX_TOKENS', 2048),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the queue used by scheduled report jobs.
+    |
+    */
+    'queue' => env('DYNAMIC_REPORTER_QUEUE', 'reports'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Export Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for CSV export functionality.
+    |
+    */
+    'export' => [
+        'disk' => env('DYNAMIC_REPORTER_EXPORT_DISK', 'local'),
+        'directory' => env('DYNAMIC_REPORTER_EXPORT_DIR', 'reports/exports'),
+        'cleanup_after_hours' => env('DYNAMIC_REPORTER_CLEANUP_HOURS', 24),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Schedule Presets
+    |--------------------------------------------------------------------------
+    |
+    | Common cron schedule presets for the UI.
+    |
+    */
+    'schedule_presets' => [
+        'daily' => '0 8 * * *',
+        'weekly' => '0 8 * * 1',
+        'monthly' => '0 8 1 * *',
+        'quarterly' => '0 8 1 1,4,7,10 *',
+    ],
 ];
