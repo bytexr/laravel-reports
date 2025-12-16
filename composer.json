@@ -1,6 +1,6 @@
 {
     "name": "bytexr/laravel-dynamic-reporter",
-    "version": "4.0.0-dev",
+    "version": "3.0.0-dev",
     "description": "A Laravel package that allows users to build custom reports from Eloquent models safely",
     "keywords": [
         "laravel",
@@ -18,14 +18,14 @@
             "email": "info@bytexr.com"
         }
     ],
-        "require": {
-            "php": "^8.2",
-            "dragonmantank/cron-expression": "^3.3",
-            "filament/filament": "^4.0",
-            "illuminate/contracts": "^10.0|^11.0",
-            "illuminate/support": "^10.0|^11.0",
-            "spatie/simple-excel": "^3.0"
-        },
+    "require": {
+        "php": "^8.2",
+        "dragonmantank/cron-expression": "^3.3",
+        "filament/filament": "^3.0",
+        "illuminate/contracts": "^10.0|^11.0",
+        "illuminate/support": "^10.0|^11.0",
+        "spatie/simple-excel": "^3.0"
+    },
     "suggest": {
         "google/apiclient": "Required for Google Drive export functionality",
         "leandrocfe/filament-apex-charts": "Required for chart visualization functionality",

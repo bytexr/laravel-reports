@@ -1,9 +1,9 @@
 # Laravel Dynamic Reporter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Filament v4](https://img.shields.io/badge/Filament-v4.x-orange.svg)](https://filamentphp.com)
+[![Filament v3](https://img.shields.io/badge/Filament-v3.x-orange.svg)](https://filamentphp.com)
 
-> **Note:** This branch targets **Filament v4**. For Filament v3 support, please switch to the [`v3` branch](https://github.com/bytexr/laravel-reports/tree/v3).
+> **Note:** This branch targets **Filament v3**. For Filament v4 support, please switch to the [`main` branch](https://github.com/bytexr/laravel-reports/tree/main).
 
 A Filament-native, AI-powered reporting engine for Laravel that allows users to build custom reports from Eloquent models safely.
 
@@ -27,7 +27,7 @@ A Filament-native, AI-powered reporting engine for Laravel that allows users to 
 
 - PHP 8.2+
 - Laravel 10+ or 11+
-- Filament 4.x
+- Filament 3.x
 
 ## Version Compatibility
 
@@ -39,7 +39,7 @@ A Filament-native, AI-powered reporting engine for Laravel that allows users to 
 ## Installation
 
 ```bash
-composer require bytexr/laravel-dynamic-reporter
+composer require bytexr/laravel-dynamic-reporter:^3.0
 ```
 
 Publish the configuration and migrations:
