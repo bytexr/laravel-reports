@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ByteXR\DynamicReporter\Concerns;
 
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
+use ByteXR\DynamicReporter\DTOs\MetricDefinition;
 use ByteXR\DynamicReporter\DTOs\ReportSchema;
 use ByteXR\DynamicReporter\Support\Field;
 
@@ -17,6 +18,17 @@ trait HasReportDefinitions
      * @return array<int, Field|FieldDefinition>
      */
     abstract protected static function reportFields(): array;
+
+    /**
+     * Get the custom metrics for this model.
+     * Override this method in your model to define calculated business metrics.
+     *
+     * @return array<int, MetricDefinition>
+     */
+    protected static function reportMetrics(): array
+    {
+        return [];
+    }
 
     /**
      * Get the report schema defining which fields are exposed for reporting.
@@ -34,10 +46,13 @@ trait HasReportDefinitions
             static::reportFields(),
         );
 
+        $metrics = static::reportMetrics();
+
         return new ReportSchema(
             name: static::getReportDisplayName(),
             description: static::getReportDescription(),
             fields: $fields,
+            metrics: $metrics,
         );
     }
 

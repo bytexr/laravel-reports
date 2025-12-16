@@ -73,6 +73,17 @@ class GeminiReportInterpreter
     {
         $schemaDescription = $this->buildSchemaDescription($schema);
         $operatorsDescription = $this->buildOperatorsDescription($schema);
+        $metricsDescription = $this->buildMetricsDescription($schema);
+
+        $metricsSection = '';
+        if (! empty($metricsDescription)) {
+            $metricsSection = <<<METRICS
+
+## Available Business Metrics
+Use these keys if the user's intent matches the description. These are calculated fields that provide business insights:
+{$metricsDescription}
+METRICS;
+        }
 
         return <<<PROMPT
 You are a report configuration assistant. Your task is to convert natural language requests into a structured JSON configuration for generating reports.
@@ -82,6 +93,7 @@ You are a report configuration assistant. Your task is to convert natural langua
 
 ## Available Fields:
 {$schemaDescription}
+{$metricsSection}
 
 ## Available Filter Operators by Field Type:
 {$operatorsDescription}
@@ -101,7 +113,7 @@ You must respond with ONLY valid JSON (no markdown, no explanation) matching thi
 }
 
 ## Rules:
-1. Only use field names that exist in the Available Fields list above.
+1. Only use field names that exist in the Available Fields or Available Business Metrics lists above.
 2. Only use operators that are valid for the field's type.
 3. For "between" operator, include both "value" and "value2".
 4. For date filters, use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS).
@@ -110,9 +122,36 @@ You must respond with ONLY valid JSON (no markdown, no explanation) matching thi
 7. If the user mentions "last month", "this week", etc., calculate the appropriate date range.
 8. The "limit" field should be null unless the user specifies a number of records.
 9. Only include fields in "group_by" if the user explicitly asks for grouping or aggregation.
+10. When the user asks for business concepts (like "margin", "LTV", "redemption rate"), use the matching metric key from Available Business Metrics.
 
 Respond with ONLY the JSON object, nothing else.
 PROMPT;
+    }
+
+    /**
+     * Build a description of available business metrics for AI context.
+     */
+    protected function buildMetricsDescription(ReportSchema $schema): string
+    {
+        if (empty($schema->metrics)) {
+            return '';
+        }
+
+        $lines = [];
+
+        foreach ($schema->metrics as $metric) {
+            $type = $metric->getType();
+            $description = $metric->getDescription();
+            $label = $metric->getLabel();
+
+            $lines[] = "- {$metric->getName()} ({$type}): {$label}";
+
+            if (! empty($description)) {
+                $lines[] = "  Description: {$description}";
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -264,8 +303,10 @@ PROMPT;
     protected function validateAndBuildConfig(array $config, ReportSchema $schema): ReportConfig
     {
         $validFieldNames = $schema->getFieldNames();
+        $validMetricNames = $schema->getMetricNames();
+        $allValidNames = array_merge($validFieldNames, $validMetricNames);
 
-        $columns = $this->validateColumns($config['columns'] ?? [], $validFieldNames);
+        $columns = $this->validateColumns($config['columns'] ?? [], $allValidNames);
         $filters = $this->validateFilters($config['filters'] ?? [], $schema);
         $sort = $this->validateSort($config['sort'] ?? [], $schema);
         $groupBy = $this->validateGroupBy($config['group_by'] ?? [], $validFieldNames);

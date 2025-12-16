@@ -6,6 +6,7 @@ namespace ByteXR\DynamicReporter\Services;
 
 use ByteXR\DynamicReporter\Contracts\Reportable;
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
+use ByteXR\DynamicReporter\DTOs\MetricDefinition;
 use ByteXR\DynamicReporter\DTOs\ReportSchema;
 use ByteXR\DynamicReporter\Traits\EvaluatesClosures;
 use Closure;
@@ -237,27 +238,52 @@ class ReportQueryBuilder
         }
 
         $columns = [];
+        $metricsToApply = [];
 
         foreach ($selectedFields as $fieldName) {
             $field = $schema->getField($fieldName);
 
-            if ($field === null || $field->isRelationship()) {
+            if ($field !== null) {
+                if (! $field->isRelationship()) {
+                    $columns[] = $field->getDbColumn();
+                }
+
                 continue;
             }
 
-            $columns[] = $field->getDbColumn();
+            $metric = $schema->getMetric($fieldName);
+
+            if ($metric !== null && $metric->hasCalculation()) {
+                $metricsToApply[] = $metric;
+            }
         }
 
-        if (! empty($columns)) {
+        if (! empty($columns) || ! empty($metricsToApply)) {
             $model = $query->getModel();
             $primaryKey = $model->getKeyName();
 
-            if (! in_array($primaryKey, $columns, true)) {
-                array_unshift($columns, $primaryKey);
+            if (! empty($columns)) {
+                if (! in_array($primaryKey, $columns, true)) {
+                    array_unshift($columns, $primaryKey);
+                }
+
+                $query->select($columns);
+            } else {
+                $query->select([$primaryKey]);
             }
 
-            $query->select($columns);
+            foreach ($metricsToApply as $metric) {
+                $this->applyMetric($query, $metric);
+            }
         }
+    }
+
+    /**
+     * Apply a metric calculation to the query.
+     */
+    protected function applyMetric(Builder $query, MetricDefinition $metric): void
+    {
+        $metric->applyToQuery($query);
     }
 
     /**

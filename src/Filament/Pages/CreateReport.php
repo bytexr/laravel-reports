@@ -194,6 +194,18 @@ class CreateReport extends Page implements HasForms
                             ->gridDirection('row'),
                     ])
                     ->visible(fn (Get $get): bool => ! empty($this->getFieldOptionsByCategory($get('model'), 'relations'))),
+
+                Section::make('Computed Metrics')
+                    ->description('Business metrics and calculated values (e.g., margin, LTV, redemption rate)')
+                    ->schema([
+                        CheckboxList::make('columns.metrics')
+                            ->label('')
+                            ->options(fn (Get $get): array => $this->getMetricOptions($get('model')))
+                            ->descriptions(fn (Get $get): array => $this->getMetricDescriptions($get('model')))
+                            ->columns(2)
+                            ->gridDirection('row'),
+                    ])
+                    ->visible(fn (Get $get): bool => ! empty($this->getMetricOptions($get('model')))),
             ]);
     }
 
@@ -1025,7 +1037,7 @@ class CreateReport extends Page implements HasForms
     }
 
     /**
-     * Get selected columns from all categories.
+     * Get selected columns from all categories including metrics.
      *
      * @return array<int, string>
      */
@@ -1033,7 +1045,7 @@ class CreateReport extends Page implements HasForms
     {
         $columns = [];
 
-        foreach (['native', 'computed', 'relations'] as $category) {
+        foreach (['native', 'computed', 'relations', 'metrics'] as $category) {
             $categoryColumns = $this->data['columns'][$category] ?? [];
 
             if (is_array($categoryColumns)) {
@@ -1207,5 +1219,51 @@ class CreateReport extends Page implements HasForms
     protected function getSchemaForModel(string $modelClass): ReportSchema
     {
         return ReportableRegistry::getInstance()->getSchema($modelClass);
+    }
+
+    /**
+     * Get metric options for a model.
+     *
+     * @return array<string, string>
+     */
+    protected function getMetricOptions(?string $modelClass): array
+    {
+        if (empty($modelClass)) {
+            return [];
+        }
+
+        $schema = $this->getSchemaForModel($modelClass);
+        $options = [];
+
+        foreach ($schema->metrics as $metric) {
+            $options[$metric->getName()] = $metric->getLabel();
+        }
+
+        return $options;
+    }
+
+    /**
+     * Get metric descriptions for a model.
+     *
+     * @return array<string, string>
+     */
+    protected function getMetricDescriptions(?string $modelClass): array
+    {
+        if (empty($modelClass)) {
+            return [];
+        }
+
+        $schema = $this->getSchemaForModel($modelClass);
+        $descriptions = [];
+
+        foreach ($schema->metrics as $metric) {
+            $description = $metric->getDescription();
+
+            if (! empty($description)) {
+                $descriptions[$metric->getName()] = $description;
+            }
+        }
+
+        return $descriptions;
     }
 }
