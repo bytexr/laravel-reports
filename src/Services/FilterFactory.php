@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace ByteXR\DynamicReporter\Services;
 
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
+use ByteXR\DynamicReporter\Enums\FieldType;
+use ByteXR\DynamicReporter\Enums\FilterOperator;
 use InvalidArgumentException;
 
-final class FilterFactory
+class FilterFactory
 {
     /**
-     * Operator definitions for each field type.
-     *
      * @var array<string, array<string, array{label: string, sql: string, requiresValue: bool, requiresSecondValue?: bool}>>
      */
-    private const TYPE_OPERATORS = [
+    protected const TYPE_OPERATORS = [
         'text' => [
             'equals' => [
                 'label' => 'Equals',
@@ -264,18 +264,16 @@ final class FilterFactory
     ];
 
     /**
-     * Get the available operators for a field type.
-     *
      * @return array<string, array{label: string, sql: string, requiresValue: bool, requiresSecondValue?: bool}>
      */
-    public function getOperatorsForType(string $type): array
+    public function getOperatorsForType(FieldType|string $type): array
     {
-        return self::TYPE_OPERATORS[$type] ?? self::TYPE_OPERATORS['text'];
+        $typeValue = $type instanceof FieldType ? $type->value : $type;
+
+        return self::TYPE_OPERATORS[$typeValue] ?? self::TYPE_OPERATORS['text'];
     }
 
     /**
-     * Get the available operators for a field definition.
-     *
      * @return array<string, array{label: string, sql: string, requiresValue: bool, requiresSecondValue?: bool}>
      */
     public function getOperatorsForField(FieldDefinition $field): array
@@ -283,10 +281,7 @@ final class FilterFactory
         return $this->getOperatorsForType($field->type);
     }
 
-    /**
-     * Check if an operator is valid for a given field type.
-     */
-    public function isValidOperator(string $type, string $operator): bool
+    public function isValidOperator(FieldType|string $type, string $operator): bool
     {
         $operators = $this->getOperatorsForType($type);
 
@@ -294,18 +289,17 @@ final class FilterFactory
     }
 
     /**
-     * Get operator details for a specific type and operator.
-     *
      * @return array{label: string, sql: string, requiresValue: bool, requiresSecondValue?: bool}
      * @throws InvalidArgumentException
      */
-    public function getOperator(string $type, string $operator): array
+    public function getOperator(FieldType|string $type, string $operator): array
     {
+        $typeValue = $type instanceof FieldType ? $type->value : $type;
         $operators = $this->getOperatorsForType($type);
 
         if (! array_key_exists($operator, $operators)) {
             throw new InvalidArgumentException(
-                "Operator [{$operator}] is not valid for type [{$type}]."
+                "Operator [{$operator}] is not valid for type [{$typeValue}]."
             );
         }
 
@@ -313,21 +307,17 @@ final class FilterFactory
     }
 
     /**
-     * Get all supported field types.
-     *
-     * @return array<int, string>
+     * @return array<int, FieldType>
      */
     public function getSupportedTypes(): array
     {
-        return array_keys(self::TYPE_OPERATORS);
+        return FieldType::cases();
     }
 
     /**
-     * Get operator labels for a field type (useful for UI dropdowns).
-     *
      * @return array<string, string>
      */
-    public function getOperatorLabels(string $type): array
+    public function getOperatorLabels(FieldType|string $type): array
     {
         $operators = $this->getOperatorsForType($type);
         $labels = [];
@@ -337,5 +327,13 @@ final class FilterFactory
         }
 
         return $labels;
+    }
+
+    /**
+     * @return array<FilterOperator>
+     */
+    public function getOperatorsEnumForType(FieldType $type): array
+    {
+        return FilterOperator::forFieldType($type);
     }
 }

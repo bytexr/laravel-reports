@@ -5,186 +5,146 @@ declare(strict_types=1);
 namespace ByteXR\DynamicReporter\Support;
 
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
+use ByteXR\DynamicReporter\Enums\FieldType;
 
-final class Field
+class Field
 {
-    private string $name;
+    protected string $name;
 
-    private string $label;
+    protected string $label;
 
-    private ?string $dbColumn = null;
+    protected ?string $dbColumn = null;
 
-    private string $type = 'text';
+    protected FieldType $type = FieldType::Text;
 
-    private bool $isSortable = false;
+    protected bool $isSortable = false;
 
-    private bool $isFilterable = true;
+    protected bool $isFilterable = true;
 
-    private bool $isExportable = true;
+    protected bool $isExportable = true;
 
-    private ?string $relationship = null;
+    protected ?string $relationship = null;
 
     /** @var array<string, mixed> */
-    private array $meta = [];
+    protected array $meta = [];
 
-    private function __construct(string $name)
+    protected function __construct(string $name)
     {
         $this->name = $name;
         $this->label = $this->humanize($name);
     }
 
-    /**
-     * Create a new field builder instance.
-     */
-    public static function make(string $name): self
+    public static function make(string $name): static
     {
-        return new self($name);
+        return new static($name);
     }
 
-    /**
-     * Set the human-readable label for the field.
-     */
-    public function label(string $label): self
+    public function label(string $label): static
     {
         $this->label = $label;
 
         return $this;
     }
 
-    /**
-     * Set the database column name.
-     */
-    public function column(string $dbColumn): self
+    public function column(string $dbColumn): static
     {
         $this->dbColumn = $dbColumn;
 
         return $this;
     }
 
-    /**
-     * Set the field type to text.
-     */
-    public function text(): self
+    public function text(): static
     {
-        $this->type = 'text';
+        $this->type = FieldType::Text;
 
         return $this;
     }
 
-    /**
-     * Set the field type to number.
-     */
-    public function number(): self
+    public function number(): static
     {
-        $this->type = 'number';
+        $this->type = FieldType::Number;
 
         return $this;
     }
 
-    /**
-     * Set the field type to date.
-     */
-    public function date(): self
+    public function date(): static
     {
-        $this->type = 'date';
+        $this->type = FieldType::Date;
 
         return $this;
     }
 
-    /**
-     * Set the field type to datetime.
-     */
-    public function datetime(): self
+    public function datetime(): static
     {
-        $this->type = 'datetime';
+        $this->type = FieldType::Datetime;
 
         return $this;
     }
 
-    /**
-     * Set the field type to boolean.
-     */
-    public function boolean(): self
+    public function boolean(): static
     {
-        $this->type = 'boolean';
+        $this->type = FieldType::Boolean;
 
         return $this;
     }
 
-    /**
-     * Set a custom field type.
-     */
-    public function type(string $type): self
+    public function money(): static
+    {
+        $this->type = FieldType::Money;
+
+        return $this;
+    }
+
+    public function type(FieldType $type): static
     {
         $this->type = $type;
 
         return $this;
     }
 
-    /**
-     * Mark the field as sortable.
-     */
-    public function sortable(bool $sortable = true): self
+    public function sortable(bool $sortable = true): static
     {
         $this->isSortable = $sortable;
 
         return $this;
     }
 
-    /**
-     * Mark the field as not sortable.
-     */
-    public function notSortable(): self
+    public function notSortable(): static
     {
         $this->isSortable = false;
 
         return $this;
     }
 
-    /**
-     * Mark the field as filterable.
-     */
-    public function filterable(bool $filterable = true): self
+    public function filterable(bool $filterable = true): static
     {
         $this->isFilterable = $filterable;
 
         return $this;
     }
 
-    /**
-     * Mark the field as not filterable.
-     */
-    public function notFilterable(): self
+    public function notFilterable(): static
     {
         $this->isFilterable = false;
 
         return $this;
     }
 
-    /**
-     * Mark the field as exportable.
-     */
-    public function exportable(bool $exportable = true): self
+    public function exportable(bool $exportable = true): static
     {
         $this->isExportable = $exportable;
 
         return $this;
     }
 
-    /**
-     * Mark the field as not exportable.
-     */
-    public function notExportable(): self
+    public function notExportable(): static
     {
         $this->isExportable = false;
 
         return $this;
     }
 
-    /**
-     * Set the relationship name for this field.
-     */
-    public function fromRelationship(string $relationship): self
+    public function fromRelationship(string $relationship): static
     {
         $this->relationship = $relationship;
 
@@ -192,20 +152,15 @@ final class Field
     }
 
     /**
-     * Add metadata to the field.
-     *
      * @param array<string, mixed> $meta
      */
-    public function meta(array $meta): self
+    public function meta(array $meta): static
     {
         $this->meta = array_merge($this->meta, $meta);
 
         return $this;
     }
 
-    /**
-     * Build the FieldDefinition DTO.
-     */
     public function build(): FieldDefinition
     {
         return new FieldDefinition(
@@ -221,10 +176,7 @@ final class Field
         );
     }
 
-    /**
-     * Convert a snake_case or camelCase string to a human-readable label.
-     */
-    private function humanize(string $value): string
+    protected function humanize(string $value): string
     {
         $value = str_replace(['_', '-'], ' ', $value);
         $value = (string) preg_replace('/([a-z])([A-Z])/', '$1 $2', $value);

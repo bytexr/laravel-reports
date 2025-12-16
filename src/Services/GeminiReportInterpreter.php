@@ -7,8 +7,9 @@ namespace ByteXR\DynamicReporter\Services;
 use ByteXR\DynamicReporter\DTOs\FieldDefinition;
 use ByteXR\DynamicReporter\DTOs\ReportConfig;
 use ByteXR\DynamicReporter\DTOs\ReportSchema;
+use ByteXR\DynamicReporter\Enums\ChartType;
+use ByteXR\DynamicReporter\Enums\FieldType;
 use ByteXR\DynamicReporter\Exceptions\GeminiException;
-use ByteXR\DynamicReporter\Models\SavedReport;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
@@ -575,7 +576,7 @@ PROMPT;
     protected function buildChartSystemPrompt(ReportSchema $schema): string
     {
         $schemaDescription = $this->buildSchemaDescription($schema);
-        $chartTypes = implode(', ', array_keys(SavedReport::CHART_TYPES));
+        $chartTypes = implode(', ', array_keys(ChartType::options()));
 
         return <<<PROMPT
 You are a data visualization assistant. Your task is to suggest the best chart type and configuration based on a natural language request and available data fields.
@@ -636,8 +637,8 @@ PROMPT;
         $validFieldNames = $schema->getFieldNames();
 
         $chartType = $config['chart_type'] ?? null;
-        if (! is_string($chartType) || ! array_key_exists($chartType, SavedReport::CHART_TYPES)) {
-            $chartType = $this->suggestChartTypeFromSchema($schema, $config['group_by'] ?? []);
+        if (! is_string($chartType) || ChartType::tryFrom($chartType) === null) {
+            $chartType = $this->suggestChartTypeFromSchema($schema, $config['group_by'] ?? [])->value;
         }
 
         $chartConfig = $config['chart_config'] ?? [];
@@ -665,48 +666,44 @@ PROMPT;
     }
 
     /**
-     * Suggest a chart type based on schema field types and grouping.
-     *
      * @param array<int, mixed> $groupBy
      */
-    public function suggestChartTypeFromSchema(ReportSchema $schema, array $groupBy = []): string
+    public function suggestChartTypeFromSchema(ReportSchema $schema, array $groupBy = []): ChartType
     {
         if (empty($groupBy)) {
             $dateFields = array_filter(
                 $schema->fields,
-                static fn ($field): bool => in_array($field->type, ['date', 'datetime'], true),
+                static fn ($field): bool => in_array($field->type, [FieldType::Date, FieldType::Datetime], true),
             );
 
             if (! empty($dateFields)) {
-                return SavedReport::CHART_TYPE_LINE;
+                return ChartType::Line;
             }
 
-            return SavedReport::CHART_TYPE_BAR;
+            return ChartType::Bar;
         }
 
         $firstGroupField = is_string($groupBy[0] ?? null) ? $groupBy[0] : null;
 
         if ($firstGroupField === null) {
-            return SavedReport::CHART_TYPE_BAR;
+            return ChartType::Bar;
         }
 
         $groupField = $schema->getField($firstGroupField);
 
         if ($groupField === null) {
-            return SavedReport::CHART_TYPE_BAR;
+            return ChartType::Bar;
         }
 
         return match ($groupField->type) {
-            'date', 'datetime' => SavedReport::CHART_TYPE_LINE,
-            'boolean' => SavedReport::CHART_TYPE_PIE,
-            'text' => count($groupBy) === 1 ? SavedReport::CHART_TYPE_PIE : SavedReport::CHART_TYPE_BAR,
-            default => SavedReport::CHART_TYPE_BAR,
+            FieldType::Date, FieldType::Datetime => ChartType::Line,
+            FieldType::Boolean => ChartType::Pie,
+            FieldType::Text => count($groupBy) === 1 ? ChartType::Pie : ChartType::Bar,
+            default => ChartType::Bar,
         };
     }
 
     /**
-     * Suggest chart axes based on schema fields.
-     *
      * @return array{x_axis: string|null, y_axis: string|null}
      */
     public function suggestChartAxes(ReportSchema $schema): array
@@ -715,11 +712,11 @@ PROMPT;
         $yAxis = null;
 
         foreach ($schema->fields as $field) {
-            if ($xAxis === null && in_array($field->type, ['date', 'datetime', 'text'], true)) {
+            if ($xAxis === null && in_array($field->type, [FieldType::Date, FieldType::Datetime, FieldType::Text], true)) {
                 $xAxis = $field->name;
             }
 
-            if ($yAxis === null && in_array($field->type, ['number', 'money'], true)) {
+            if ($yAxis === null && in_array($field->type, [FieldType::Number, FieldType::Money], true)) {
                 $yAxis = $field->name;
             }
 

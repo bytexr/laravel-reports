@@ -6,6 +6,8 @@ namespace ByteXR\DynamicReporter\Services;
 
 use ByteXR\DynamicReporter\Contracts\Reportable;
 use ByteXR\DynamicReporter\DTOs\ReportSchema;
+use ByteXR\DynamicReporter\Enums\ChartType;
+use ByteXR\DynamicReporter\Enums\FieldType;
 use ByteXR\DynamicReporter\Models\SavedReport;
 use Illuminate\Support\Collection;
 
@@ -60,9 +62,9 @@ class ChartDataService
             return ['labels' => [], 'datasets' => []];
         }
 
-        $chartType = $report->chart_type;
+        $chartType = $report->getChartTypeEnum();
 
-        if (in_array($chartType, [SavedReport::CHART_TYPE_PIE, SavedReport::CHART_TYPE_DONUT], true)) {
+        if ($chartType !== null && $chartType->isPieType()) {
             return $this->transformToPieData($results, $xAxis, $yAxis, $report);
         }
 
@@ -170,43 +172,39 @@ class ChartDataService
     }
 
     /**
-     * Suggest a chart type based on field types and grouping.
-     *
      * @param array<int, string> $groupBy
      */
-    public function suggestChartType(ReportSchema $schema, array $groupBy = []): string
+    public function suggestChartType(ReportSchema $schema, array $groupBy = []): ChartType
     {
         if (empty($groupBy)) {
-            return SavedReport::CHART_TYPE_BAR;
+            return ChartType::Bar;
         }
 
         $groupField = $schema->getField($groupBy[0] ?? '');
 
         if ($groupField === null) {
-            return SavedReport::CHART_TYPE_BAR;
+            return ChartType::Bar;
         }
 
         return match ($groupField->type) {
-            'date', 'datetime' => SavedReport::CHART_TYPE_LINE,
-            'text' => count($groupBy) === 1 ? SavedReport::CHART_TYPE_PIE : SavedReport::CHART_TYPE_BAR,
-            'boolean' => SavedReport::CHART_TYPE_PIE,
-            default => SavedReport::CHART_TYPE_BAR,
+            FieldType::Date, FieldType::Datetime => ChartType::Line,
+            FieldType::Text => count($groupBy) === 1 ? ChartType::Pie : ChartType::Bar,
+            FieldType::Boolean => ChartType::Pie,
+            default => ChartType::Bar,
         };
     }
 
     /**
-     * Get ApexCharts options for a chart type.
-     *
      * @return array<string, mixed>
      */
     public function getApexChartsOptions(SavedReport $report): array
     {
-        $chartType = $report->chart_type ?? SavedReport::CHART_TYPE_BAR;
+        $chartType = $report->getChartTypeEnum() ?? ChartType::Bar;
         $colors = $report->getChartColors();
 
         $baseOptions = [
             'chart' => [
-                'type' => $this->mapToApexChartType($chartType),
+                'type' => $chartType->apexType(),
                 'height' => 350,
                 'toolbar' => [
                     'show' => true,
@@ -218,11 +216,11 @@ class ChartDataService
                 'align' => 'center',
             ],
             'dataLabels' => [
-                'enabled' => in_array($chartType, [SavedReport::CHART_TYPE_PIE, SavedReport::CHART_TYPE_DONUT], true),
+                'enabled' => $chartType->isPieType(),
             ],
         ];
 
-        if (in_array($chartType, [SavedReport::CHART_TYPE_PIE, SavedReport::CHART_TYPE_DONUT], true)) {
+        if ($chartType->isPieType()) {
             $baseOptions['legend'] = [
                 'position' => 'bottom',
             ];
@@ -243,20 +241,5 @@ class ChartDataService
         }
 
         return $baseOptions;
-    }
-
-    /**
-     * Map internal chart type to ApexCharts type.
-     */
-    protected function mapToApexChartType(string $chartType): string
-    {
-        return match ($chartType) {
-            SavedReport::CHART_TYPE_LINE => 'line',
-            SavedReport::CHART_TYPE_BAR => 'bar',
-            SavedReport::CHART_TYPE_PIE => 'pie',
-            SavedReport::CHART_TYPE_AREA => 'area',
-            SavedReport::CHART_TYPE_DONUT => 'donut',
-            default => 'bar',
-        };
     }
 }

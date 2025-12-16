@@ -5,19 +5,23 @@ declare(strict_types=1);
 namespace ByteXR\DynamicReporter;
 
 use ByteXR\DynamicReporter\Console\Commands\DispatchScheduledReports;
+use ByteXR\DynamicReporter\Contracts\ExternalExportDriver;
 use ByteXR\DynamicReporter\Contracts\Reportable;
+use ByteXR\DynamicReporter\Drivers\GoogleDriveExportDriver;
 use ByteXR\DynamicReporter\Models\SavedReport;
 use ByteXR\DynamicReporter\Observers\SavedReportObserver;
+use ByteXR\DynamicReporter\Services\ChartDataService;
+use ByteXR\DynamicReporter\Services\FilterFactory;
+use ByteXR\DynamicReporter\Services\GeminiReportInterpreter;
+use ByteXR\DynamicReporter\Services\PdfExportService;
 use ByteXR\DynamicReporter\Services\ReportCsvExporter;
 use ByteXR\DynamicReporter\Services\ReportQueryBuilder;
+use ByteXR\DynamicReporter\Services\StreamCsvExport;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
 class DynamicReporterServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         $this->mergeConfigFrom(
@@ -25,22 +29,52 @@ class DynamicReporterServiceProvider extends ServiceProvider
             'dynamic-reporter'
         );
 
+        $this->registerCoreServices();
+        $this->registerExportServices();
+    }
+
+    protected function registerCoreServices(): void
+    {
         $this->app->singleton(ReportableRegistry::class, function (): ReportableRegistry {
             return ReportableRegistry::getInstance();
         });
 
-        $this->app->singleton(ReportQueryBuilder::class, function (): ReportQueryBuilder {
-            return new ReportQueryBuilder();
+        $this->app->singleton(FilterFactory::class, function (): FilterFactory {
+            return new FilterFactory();
         });
 
-        $this->app->singleton(ReportCsvExporter::class, function (): ReportCsvExporter {
-            return new ReportCsvExporter();
+        $this->app->singleton(ReportQueryBuilder::class, function ($app): ReportQueryBuilder {
+            return new ReportQueryBuilder($app->make(FilterFactory::class));
+        });
+
+        $this->app->singleton(GeminiReportInterpreter::class, function ($app): GeminiReportInterpreter {
+            return new GeminiReportInterpreter($app->make(FilterFactory::class));
+        });
+
+        $this->app->singleton(ChartDataService::class, function ($app): ChartDataService {
+            return new ChartDataService($app->make(ReportQueryBuilder::class));
         });
     }
 
-    /**
-     * Bootstrap any application services.
-     */
+    protected function registerExportServices(): void
+    {
+        $this->app->singleton(ReportCsvExporter::class, function (): ReportCsvExporter {
+            return new ReportCsvExporter();
+        });
+
+        $this->app->singleton(StreamCsvExport::class, function (): StreamCsvExport {
+            return new StreamCsvExport();
+        });
+
+        $this->app->singleton(PdfExportService::class, function (): PdfExportService {
+            return new PdfExportService();
+        });
+
+        $this->app->bind(ExternalExportDriver::class, function (): ExternalExportDriver {
+            return new GoogleDriveExportDriver();
+        });
+    }
+
     public function boot(): void
     {
         $this->publishes([
@@ -69,17 +103,12 @@ class DynamicReporterServiceProvider extends ServiceProvider
         $this->registerObservers();
     }
 
-    /**
-     * Register model observers.
-     */
     protected function registerObservers(): void
     {
-        SavedReport::observe(SavedReportObserver::class);
+        $savedReportClass = static::getSavedReportModel();
+        $savedReportClass::observe(SavedReportObserver::class);
     }
 
-    /**
-     * Register reportable models from config.
-     */
     protected function registerReportableModels(): void
     {
         /** @var array<int, class-string<Model&Reportable>> $models */
@@ -88,5 +117,27 @@ class DynamicReporterServiceProvider extends ServiceProvider
         if (! empty($models)) {
             ReportableRegistry::getInstance()->registerMany($models);
         }
+    }
+
+    /**
+     * @return class-string<SavedReport>
+     */
+    public static function getSavedReportModel(): string
+    {
+        /** @var class-string<SavedReport> $class */
+        $class = config('dynamic-reporter.model_classes.saved_report', SavedReport::class);
+
+        return $class;
+    }
+
+    /**
+     * @return class-string<\ByteXR\DynamicReporter\Models\ReportVersion>
+     */
+    public static function getReportVersionModel(): string
+    {
+        /** @var class-string<\ByteXR\DynamicReporter\Models\ReportVersion> $class */
+        $class = config('dynamic-reporter.model_classes.report_version', \ByteXR\DynamicReporter\Models\ReportVersion::class);
+
+        return $class;
     }
 }

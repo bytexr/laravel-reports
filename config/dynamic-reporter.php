@@ -19,6 +19,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Model Classes
+    |--------------------------------------------------------------------------
+    |
+    | These settings allow you to customize the model classes used by the
+    | package. This is useful if you need to extend the default models
+    | with your own custom functionality.
+    |
+    */
+    'model_classes' => [
+        'saved_report' => \ByteXR\DynamicReporter\Models\SavedReport::class,
+        'report_version' => \ByteXR\DynamicReporter\Models\ReportVersion::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Gemini AI Configuration
     |--------------------------------------------------------------------------
     |

@@ -4,36 +4,19 @@ declare(strict_types=1);
 
 namespace ByteXR\DynamicReporter\DTOs;
 
+use ByteXR\DynamicReporter\Enums\MetricType;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 
 class MetricDefinition
 {
-    public const TYPE_NUMBER = 'number';
-
-    public const TYPE_PERCENTAGE = 'percentage';
-
-    public const TYPE_CURRENCY = 'currency';
-
-    public const TYPE_COUNT = 'count';
-
-    public const TYPE_AVERAGE = 'average';
-
-    public const TYPES = [
-        self::TYPE_NUMBER => 'Number',
-        self::TYPE_PERCENTAGE => 'Percentage',
-        self::TYPE_CURRENCY => 'Currency',
-        self::TYPE_COUNT => 'Count',
-        self::TYPE_AVERAGE => 'Average',
-    ];
-
     protected string $name;
 
     protected string $label;
 
     protected string $description = '';
 
-    protected string $type = self::TYPE_NUMBER;
+    protected MetricType $type = MetricType::Number;
 
     protected ?Closure $queryModifier = null;
 
@@ -70,7 +53,7 @@ class MetricDefinition
         return $this;
     }
 
-    public function type(string $type): static
+    public function type(MetricType $type): static
     {
         $this->type = $type;
 
@@ -79,27 +62,27 @@ class MetricDefinition
 
     public function number(): static
     {
-        return $this->type(self::TYPE_NUMBER);
+        return $this->type(MetricType::Number);
     }
 
     public function percentage(): static
     {
-        return $this->type(self::TYPE_PERCENTAGE);
+        return $this->type(MetricType::Percentage);
     }
 
     public function currency(): static
     {
-        return $this->type(self::TYPE_CURRENCY);
+        return $this->type(MetricType::Currency);
     }
 
     public function count(): static
     {
-        return $this->type(self::TYPE_COUNT);
+        return $this->type(MetricType::Count);
     }
 
     public function average(): static
     {
-        return $this->type(self::TYPE_AVERAGE);
+        return $this->type(MetricType::Average);
     }
 
     /**
@@ -164,9 +147,14 @@ class MetricDefinition
         return $this->description;
     }
 
-    public function getType(): string
+    public function getType(): MetricType
     {
         return $this->type;
+    }
+
+    public function getTypeValue(): string
+    {
+        return $this->type->value;
     }
 
     public function getQueryModifier(): ?Closure
@@ -232,7 +220,7 @@ class MetricDefinition
             'name' => $this->name,
             'label' => $this->label,
             'description' => $this->description,
-            'type' => $this->type,
+            'type' => $this->type->value,
             'isExportable' => $this->isExportable,
             'isFilterable' => $this->isFilterable,
             'hasCalculation' => $this->hasCalculation(),
@@ -251,7 +239,7 @@ class MetricDefinition
             'name' => $this->name,
             'label' => $this->label,
             'description' => $this->description,
-            'type' => $this->type,
+            'type' => $this->type->value,
         ];
     }
 

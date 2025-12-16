@@ -4,29 +4,13 @@ declare(strict_types=1);
 
 namespace ByteXR\DynamicReporter\Models;
 
+use ByteXR\DynamicReporter\Enums\ChartType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SavedReport extends Model
 {
-    public const CHART_TYPE_LINE = 'line';
-
-    public const CHART_TYPE_BAR = 'bar';
-
-    public const CHART_TYPE_PIE = 'pie';
-
-    public const CHART_TYPE_AREA = 'area';
-
-    public const CHART_TYPE_DONUT = 'donut';
-
-    public const CHART_TYPES = [
-        self::CHART_TYPE_LINE => 'Line Chart',
-        self::CHART_TYPE_BAR => 'Bar Chart',
-        self::CHART_TYPE_PIE => 'Pie Chart',
-        self::CHART_TYPE_AREA => 'Area Chart',
-        self::CHART_TYPE_DONUT => 'Donut Chart',
-    ];
 
     protected $fillable = [
         'name',
@@ -140,7 +124,16 @@ class SavedReport extends Model
      */
     public static function getChartTypeOptions(): array
     {
-        return self::CHART_TYPES;
+        return ChartType::options();
+    }
+
+    public function getChartTypeEnum(): ?ChartType
+    {
+        if ($this->chart_type === null) {
+            return null;
+        }
+
+        return ChartType::tryFrom($this->chart_type);
     }
 
     /**

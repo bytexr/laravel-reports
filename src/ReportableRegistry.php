@@ -11,12 +11,12 @@ use InvalidArgumentException;
 
 class ReportableRegistry
 {
-    private static ?self $instance = null;
+    protected static ?self $instance = null;
 
     /** @var array<class-string<Model&Reportable>, ReportSchema|null> */
-    private array $models = [];
+    protected array $models = [];
 
-    private function __construct()
+    protected function __construct()
     {
     }
 
@@ -132,11 +132,9 @@ class ReportableRegistry
     }
 
     /**
-     * Validate that the model class implements Reportable.
-     *
      * @param class-string $modelClass
      */
-    private function validateModelClass(string $modelClass): void
+    protected function validateModelClass(string $modelClass): void
     {
         if (! class_exists($modelClass)) {
             throw new InvalidArgumentException("Class [{$modelClass}] does not exist.");

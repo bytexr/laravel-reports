@@ -4,24 +4,18 @@ declare(strict_types=1);
 
 namespace ByteXR\DynamicReporter\DTOs;
 
+use ByteXR\DynamicReporter\Enums\FieldType;
+
 final readonly class FieldDefinition
 {
     /**
-     * @param string $name The internal field name (used as identifier)
-     * @param string $label The human-readable label for the field
-     * @param string|null $dbColumn The database column name (defaults to name if null)
-     * @param string $type The field type (text, number, date, datetime, boolean)
-     * @param bool $isSortable Whether the field can be sorted
-     * @param bool $isFilterable Whether the field can be filtered
-     * @param bool $isExportable Whether the field can be exported
-     * @param string|null $relationship The relationship name if this field comes from a relation
-     * @param array<string, mixed> $meta Additional metadata for the field
+     * @param array<string, mixed> $meta
      */
     public function __construct(
         public string $name,
         public string $label,
         public ?string $dbColumn = null,
-        public string $type = 'text',
+        public FieldType $type = FieldType::Text,
         public bool $isSortable = false,
         public bool $isFilterable = true,
         public bool $isExportable = true,
@@ -45,9 +39,12 @@ final readonly class FieldDefinition
         return $this->relationship !== null;
     }
 
+    public function getTypeValue(): string
+    {
+        return $this->type->value;
+    }
+
     /**
-     * Convert the field definition to an array.
-     *
      * @return array<string, mixed>
      */
     public function toArray(): array
@@ -56,7 +53,7 @@ final readonly class FieldDefinition
             'name' => $this->name,
             'label' => $this->label,
             'db_column' => $this->getDbColumn(),
-            'type' => $this->type,
+            'type' => $this->type->value,
             'is_sortable' => $this->isSortable,
             'is_filterable' => $this->isFilterable,
             'is_exportable' => $this->isExportable,
