@@ -16,4 +16,21 @@ return [
     'models' => [
         // \App\Models\User::class,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gemini AI Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the Google Gemini AI integration that powers
+    | natural language report generation.
+    |
+    */
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
+        'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
+        'timeout' => env('GEMINI_TIMEOUT', 30),
+        'max_tokens' => env('GEMINI_MAX_TOKENS', 2048),
+    ],
 ];
